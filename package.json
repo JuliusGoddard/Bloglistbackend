@@ -26,7 +26,7 @@
   },
   "scripts": {
     "devstart": "cross-env NODE_ENV=development nodemon index.js",
-    "start": "cross-env NODE_ENV=production node index.js",
+    "start": "cross-env NODE_ENV=production react-scripts start",
     "eject": "react-scripts eject",
     "test": "cross-env NODE_ENV=test jest --verbose --runInBand --forceExit"
   },
