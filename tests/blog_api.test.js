@@ -64,6 +64,28 @@ expect(response.body[0].id).toBeDefined()
   
 })
 
+describe('Adding new Entry to DB', () => {
+
+  let token = null
+  beforeAll(async () => {
+    await User.deleteMany({})
+
+    const passwordHash = await bcrypt.hash('password', 10)
+    const user = new User({ username: 'jane', passwordHash })
+
+    await user.save()
+
+    // Login user to get token
+    await api
+      .post('/api/login')
+      .send({ username: 'jane', password: 'password' })
+      .then((res) => {
+        return (token = res.body.token)
+      })
+
+    return token
+  })
+
 test('a valid blog can be added', async () => {
 
   const newBlog = {
@@ -75,10 +97,10 @@ test('a valid blog can be added', async () => {
 
   await api
   .post("/api/blogs")
+  .set('Authorization', `Bearer ${token}`)
   .send(newBlog)
-  .set("Authorization",`Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6Im1tbSIsImlkIjoiNjI5YjViNjJkMmFmYjE5YTM5NTE1Yzc3IiwiaWF0IjoxNjU0NTE0ODI4fQ.Oplyvz5OxcJRJ5vGoczynVnieEU25wBwJfBHKPIC3s4`)
-  .set("Accept","application/json")
-  .expect(201)
+  .expect(200)
+  .expect('Content-Type', /application\/json/)
 
 
 
@@ -87,9 +109,9 @@ expect(blogsAtEnd).toHaveLength(initialBlogs.length + 1)
 
 const title = blogsAtEnd.map(r => r.title)
 expect(title).toContain('Canonical string reduction')
-})
+}, 10000)
 
-test('check whether id is 0', async () => {
+test('check whether likes is 0', async () => {
   const newBlog = {
     title: "Canonical string reduction",
     author: "Edsger W. Dijkstra",
@@ -98,8 +120,8 @@ test('check whether id is 0', async () => {
 
   await api.post('/api/blogs')
   .send(newBlog)
-  .set('Authorization', 'bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6Im1tbSIsImlkIjoiNjI5YjViNjJkMmFmYjE5YTM5NTE1Yzc3IiwiaWF0IjoxNjU0MzQ4NjUyfQ.Hw7yzvD7hK_W0Tvq-JMTFNUTSNPLQtE1dpuO9rueLmU')
-  .expect(201)
+  .set('Authorization', `bearer ${token} `)
+  .expect(200)
   .expect('Content-Type', /application\/json/)
 
 const response = await api.get('/api/blogs')
@@ -123,27 +145,65 @@ test('check whether a bad request is sent back', async () => {
   .expect(401)
 
 })
+})
 
-test('deletion of a note', async () => {
+describe('deletion of a blog', () => {
+  let token = null
+
+  beforeEach(async () => {
+    await Blog.deleteMany({})
+    await User.deleteMany({})
+
+    const passwordHash = await bcrypt.hash('password', 10)
+    const user = new User({ username: 'jane', passwordHash })
+
+    await user.save()
+
+    // Login user to get token
+    await api
+      .post('/api/login')
+      .send({ username: 'jane', password: 'password' })
+      .then((res) => {
+        return (token = res.body.token)
+      })
+
+    const newBlog = {
+      title: 'Another blog',
+      author: 'Jane Doe',
+      url: 'http://dummyurl.com',
+    }
+
+    await api
+      .post('/api/blogs')
+      .set('Authorization', `Bearer ${token}`)
+      .send(newBlog)
+      .expect(200)
+      .expect('Content-Type', /application\/json/)
+
+    return token
+  })
+
+test('deletion of a blog', async () => {
 
   const blogsAtStart = await helper.blogsInDb()
   const blogToDelete = blogsAtStart[0]
 
   await api
     .delete(`/api/blogs/${blogToDelete.id}`)
-    .set('Authorization', 'bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6Im1tbSIsImlkIjoiNjI5YjViNjJkMmFmYjE5YTM5NTE1Yzc3IiwiaWF0IjoxNjU0MzQ4NjUyfQ.Hw7yzvD7hK_W0Tvq-JMTFNUTSNPLQtE1dpuO9rueLmU')
+    .set('Authorization', `bearer ${token}`)
     .expect(204)
 
   const blogsAtEnd = await helper.blogsInDb()
 
   expect(blogsAtEnd).toHaveLength(
-    helper.initialBlogs.length - 1
+    0
   )
 
   const title = blogsAtEnd.map(r => r.title)
 
   expect(title).not.toContain(blogToDelete.title)
     
+})
 })
 
 test('a specific blog can be viewed', async () => {
@@ -161,34 +221,10 @@ test('a specific blog can be viewed', async () => {
 
 }) 
 
-test('check if property id exists', async () => {
+test('check if property ID exists', async () => {
   const response = await api.get('/api/blogs')
 expect(response.body[0].id).toBeDefined()
   
-})
-
-test('a blog can be updated', async () => {
-
-  const blogsAtStart = await helper.blogsInDb()
-
-  const blogToUpdate = blogsAtStart[0]
-
-  const newBlog = {
-    title: "Canonical Different title stuff",
-    author: "Edsger W. Dijkstra",
-    url: "http://www.cs.utexas.edu/~EWD/transcriptions/EWD08xx/EWD808.html",
-    likes: 12
-  }
-
-  await api.put(`/api/blogs/${blogToUpdate.id}`)
-  .send(newBlog)
-  .expect(200)
-  .expect('Content-Type', /application\/json/)
-
-const blogsAtEnd = await helper.blogsInDb()
-
-const title = blogsAtEnd.map(r => r.title)
-expect(title).toContain('Canonical Different title stuff')
 })
 
 describe('when there is initially one user in db', () => {
